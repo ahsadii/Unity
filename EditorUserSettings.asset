@@ -1,24 +1,95 @@
-%YAML 1.1
-%TAG !u! tag:unity3d.com,2011:
---- !u!162 &1
-EditorUserSettings:
-  m_ObjectHideFlags: 0
-  serializedVersion: 4
-  m_ConfigSettings:
-    RecentlyUsedScenePath-0:
-      value: 22424703114646680e0b0227036c6c111b07142f1f2b233e2867083debf42d
-      flags: 0
-    vcSharedLogLevel:
-      value: 0d5e400f0650
-      flags: 0
-  m_VCAutomaticAdd: 1
-  m_VCDebugCom: 0
-  m_VCDebugCmd: 0
-  m_VCDebugOut: 0
-  m_SemanticMergeMode: 2
-  m_VCShowFailedCheckout: 1
-  m_VCOverwriteFailedCheckoutAssets: 1
-  m_VCProjectOverlayIcons: 1
-  m_VCHierarchyOverlayIcons: 1
-  m_VCOtherOverlayIcons: 1
-  m_VCAllowAsyncUpdate: 1
+using UnityEngine;
+
+[RequireComponent(typeof(ParticleSystem))]
+public class WaterfallSimulation : MonoBehaviour
+{
+    [Header("Main Settings")]
+    public float waterfallWidth = 1f;      // Ширина водопада
+    public float waterfallHeight = 5f;     // Высота, с которой падает вода
+    public float flowIntensity = 100f;     // Интенсивность потока (частиц в секунду)
+    public Color waterColor = new Color(0, 0.7f, 1f, 0.8f); // Цвет воды
+
+    [Header("Splash Effect (Optional)")]
+    public bool enableSplash = true;       // Включить брызги внизу
+    public float splashSize = 0.2f;       // Размер брызг
+    public int splashParticles = 20;      // Количество брызг
+
+    private ParticleSystem waterfallPS;
+    private ParticleSystem splashPS;
+
+    void Start()
+    {
+        // Создаем основной Particle System для водопада
+        waterfallPS = GetComponent<ParticleSystem>();
+        SetupWaterfall();
+
+        // Создаем Particle System для брызг (если включено)
+        if (enableSplash)
+        {
+            CreateSplashEffect();
+        }
+    }
+
+    void SetupWaterfall()
+    {
+        var main = waterfallPS.main;
+        main.startSpeed = 5f;
+        main.startLifetime = 2f;
+        main.startSize = 0.1f;
+        main.gravityModifier = 0.5f;
+        main.maxParticles = 1000;
+
+        var emission = waterfallPS.emission;
+        emission.rateOverTime = flowIntensity;
+
+        var shape = waterfallPS.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = new Vector3(waterfallWidth, 0.5f, 0.1f);
+
+        var colorOverLifetime = waterfallPS.colorOverLifetime;
+        Gradient gradient = new Gradient();
+        gradient.SetKeys(
+            new GradientColorKey[] { new GradientColorKey(waterColor, 0f), new GradientColorKey(waterColor, 0.7f) },
+            new GradientAlphaKey[] { new GradientAlphaKey(0.8f, 0f), new GradientAlphaKey(0f, 1f) }
+        );
+        colorOverLifetime.color = gradient;
+
+        var sizeOverLifetime = waterfallPS.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        AnimationCurve curve = new AnimationCurve(
+            new Keyframe(0f, 0.1f),
+            new Keyframe(0.5f, 0.15f),
+            new Keyframe(1f, 0f)
+        );
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, curve);
+    }
+
+    void CreateSplashEffect()
+    {
+        GameObject splashObj = new GameObject("SplashEffect");
+        splashObj.transform.position = transform.position - new Vector3(0, waterfallHeight, 0);
+        splashPS = splashObj.AddComponent<ParticleSystem>();
+
+        var main = splashPS.main;
+        main.startSpeed = 2f;
+        main.startLifetime = 0.5f;
+        main.startSize = splashSize;
+        main.maxParticles = 100;
+
+        var emission = splashPS.emission;
+        emission.rateOverTime = 0; // Брызги будут создаваться триггером
+        emission.SetBursts(new ParticleSystem.Burst[] { new ParticleSystem.Burst(0f, splashParticles) });
+
+        var shape = splashPS.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.5f;
+    }
+
+    // Регулировка интенсивности потока в реальном времени
+    public void SetFlowIntensity(float intensity)
+    {
+        flowIntensity = intensity;
+        var emission = waterfallPS.emission;
+        emission.rateOverTime = flowIntensity;
+    }
+}
